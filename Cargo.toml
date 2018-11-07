@@ -1,0 +1,8 @@
+[package]
+name = "rustnn"
+version = "0.1.0"
+authors = ["Axary <bastian_kauschke@hotmail.de>"]
+edition = "2018"
+
+[dependencies]
+rand = "*"
