@@ -3,9 +3,9 @@
 //! a neural network library written in rust with a primary focus on speed
 pub mod nn;
 
-use std::num::NonZeroUsize;
-
 use self::nn::Network;
+
+use rayon::prelude::*;
 
 /// calculates the binary sigmoidal function of `t`, returning a value between `0.0` and `1.0`:
 /// 
@@ -21,23 +21,21 @@ pub fn bipolar_sigmoid(t: f32, a: f32) -> f32 {
 
 pub struct Environment {
     networks: Vec<Network>,
-    fitness_function: fn(&Network) -> f32,
-
     survivor_count: usize,
     generation: u32
 }
 
 impl Environment {
-    pub fn new(network_type: &[NonZeroUsize], network_count: usize, fitness_function: fn(&Network) -> f32) -> Result<Self, nn::CreationError> {
+    pub fn new(network_type: &[usize], network_count: usize) -> Result<Self, nn::CreationError> {
         Network::is_valid_type(network_type)?;
 
-        let networks = (0..network_count).map(|_| Network::new(network_type).unwrap()).collect();
+        let networks = std::iter::repeat_with(||Network::new(network_type).unwrap()).take(network_count).collect();
 
         Ok(Self {
             networks: networks,
-            fitness_function: fitness_function,
             
             survivor_count: 0,
+          
             generation: 0,
         })
     }
@@ -79,16 +77,11 @@ impl Environment {
 
         survivors
     }
-
-    pub fn run_step(&mut self) {
+    
+    pub fn simple_gen(&mut self, fitness_function: fn(&Network) -> f32) {
         self.generation += 1;
 
-        let ordered_nn = {
-            let mut nn: Vec<_> = std::mem::replace(&mut self.networks, Vec::with_capacity(0)).into_iter()
-            .map(|nn| ((self.fitness_function)(&nn), nn)).collect();
-            nn.sort_unstable_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
-            nn
-        };
+        let ordered_nn = Self::simple_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), fitness_function);
         
         let (survivor_count, networks) = Self::evolve_rated_networks(ordered_nn);
 
@@ -96,7 +89,41 @@ impl Environment {
         self.networks = networks;
     }
 
-    fn evolve_rated_networks(mut ordered_nn: Vec<(f32, Network)>) -> (usize, Vec<Network>) {
+    pub fn pair_gen(&mut self, fitness_function: fn(&Network, &Network) -> (f32, f32)) {
+        self.generation += 1;
+
+        let ordered_nn = Self::pair_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), fitness_function);
+
+        let (survivor_count, networks) = Self::evolve_rated_networks(ordered_nn);
+
+        self.survivor_count = survivor_count;
+        self.networks = networks;
+    }
+
+    fn sort_fitness_vec(mut nn: Vec<(f32, Network)>) -> Vec<(f32, Network)> {
+        nn.sort_unstable_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
+        nn
+    }
+
+    pub fn simple_rate(nn: Vec<Network>, fitness_function: fn(&Network) -> f32) -> Vec<(f32, Network)> {
+        Self::sort_fitness_vec(nn.into_par_iter().map(|nn| (fitness_function(&nn), nn)).collect())
+    }
+
+    pub fn pair_rate(networks: Vec<Network>, fitness_function: fn(&Network, &Network) -> (f32, f32)) -> Vec<(f32, Network)> {
+        let mut nn_iter = networks.iter().enumerate();
+        let mut fitness_vec: Vec<f32> = std::iter::repeat(0.0).take(networks.len()).collect();
+        while let Some((a, nn_a)) = nn_iter.next() {
+            for (b, nn_b) in nn_iter.clone() {
+                let (fit_a, fit_b) = fitness_function(nn_a, nn_b);
+                fitness_vec[a] += fit_a;
+                fitness_vec[b] += fit_b;
+            }
+        }
+
+        Self::sort_fitness_vec(fitness_vec.into_iter().zip(networks.into_iter()).collect())  
+    }
+
+    pub fn evolve_rated_networks(mut ordered_nn: Vec<(f32, Network)>) -> (usize, Vec<Network>) {
         let nn_count = ordered_nn.len();
 
         let mut networks = Vec::with_capacity(nn_count);
@@ -111,22 +138,25 @@ impl Environment {
         let m_to_b = Bernoulli::new(0.3);
         // how many weights chance during mutation
         let mutation_ratio = 0.3;
-        let rng = &mut rand::thread_rng();
         let possible_parents = Uniform::new(0, networks.len());
-        while networks.len() < nn_count {
+
+        networks.append(&mut rayon::iter::repeatn((), nn_count - networks.len()).map(|_| {
+            let rng = &mut rand::thread_rng();
             if m_to_b.sample(rng) {
                 let father = &networks[possible_parents.sample(rng)];
                 let mut mother = &networks[possible_parents.sample(rng)];
                 while father as *const _ == mother as *const _ {
                     mother = &networks[possible_parents.sample(rng)];
                 }
+
+                Network::breed(father, mother, 0.5)
             }
             else {
                 let mut offspring = networks[possible_parents.sample(rng)].clone();
                 offspring.mutate(mutation_ratio);
-                networks.push(offspring);
+                offspring
             }
-        }
+        }).collect());
 
         (survivor_count, networks)
     }

@@ -1,5 +1,3 @@
-use std::num::NonZeroUsize;
-
 #[derive(Clone, Debug)]
 pub struct Node {
     weights: Vec<f32>
@@ -8,17 +6,30 @@ pub struct Node {
 impl Node {
     fn with_weights(n_weights: usize) -> Self {
         Self {
-            weights: (0..n_weights).map(|_| {
+            weights: std::iter::repeat_with(|| {
                 use rand::distributions::{Distribution, Uniform};
                 Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng())
-            }).collect()
+            }).take(n_weights).collect()
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Layer {
+    nodes: Vec<Node>
+}
+
+impl Layer {
+    fn new(node_count: usize, weight_count: usize) -> Self {
+        Self { 
+            nodes: std::iter::repeat_with(|| Node::with_weights(weight_count)).take(node_count).collect() 
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Network {
-    layers: Vec<Vec<Node>>
+    layers: Vec<Layer>
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,8 +43,8 @@ pub enum RunError {
 }
 
 impl Network {
-    pub fn is_valid_type(layers: &[NonZeroUsize]) -> Result<(), CreationError> {
-        if layers.len() < 2 {
+    pub fn is_valid_type(layers: &[usize]) -> Result<(), CreationError> {
+        if layers.len() < 2 || layers.contains(&0) {
             Err(CreationError::NotEnoughLayers)
         }
         else {
@@ -41,22 +52,18 @@ impl Network {
         }
     }
 
-    pub fn new(layers: &[NonZeroUsize]) -> Result<Self, CreationError> {
+    pub fn new(layers: &[usize]) -> Result<Self, CreationError> {
         Self::is_valid_type(layers)?;
 
         let mut network = Network {
             layers: Vec::with_capacity(layers.len())
         };
 
-        network.layers.push((0..layers[1].get()).map(|_| {
-            Node::with_weights(layers[0].get() + 1)
-        }).collect());
+        network.layers.push(Layer::new(layers[1], layers[0] + 1));
 
         for &layer in &layers[2..] {
-            let prev_node_count = network.layers.last().unwrap().len();
-            network.layers.push((0..layer.get()).map(|_| {
-                Node::with_weights(prev_node_count + 1)
-            }).collect());
+            let prev_node_count = network.layers.last().unwrap().nodes.len();
+            network.layers.push(Layer::new(layer, prev_node_count + 1));
         }
 
         Ok(network)
@@ -72,19 +79,19 @@ impl Network {
 
         total += weights.last().unwrap();
 
-        crate::sigmoid(total, 10.0)
+        crate::bipolar_sigmoid(total, 10.0)
     }
 
     pub fn run(&self, input: &[f32]) -> Result<Vec<f32>, RunError> {
-        if input.len() != self.layers[0][0].weights.len() - 1 {
+        if input.len() != self.layers[0].nodes[0].weights.len() - 1 {
             Err(RunError::WrongInputCount)
         }
         else {
             let mut prev_layer = input.to_vec();
             for layer in &self.layers {
-                let mut current_layer = Vec::with_capacity(layer.len());
+                let mut current_layer = Vec::with_capacity(layer.nodes.len());
 
-                for node in layer.iter() {
+                for node in layer.nodes.iter() {
                     current_layer.push(Self::calculate_value(&prev_layer, &node.weights));
                 }
 
@@ -101,7 +108,7 @@ impl Network {
         use rand::distributions::{Distribution, Bernoulli};
         let d = Bernoulli::new(p);
         for (c_lay, p_lay) in child.layers.iter_mut().zip(&mother.layers) {
-            for (c_node, p_node) in c_lay.iter_mut().zip(p_lay) {
+            for (c_node, p_node) in c_lay.nodes.iter_mut().zip(&p_lay.nodes) {
                 for (c_weight, &p_weight) in c_node.weights.iter_mut().zip(&p_node.weights) {
                     if d.sample(&mut rand::thread_rng()) {
                         *c_weight = p_weight;
@@ -118,7 +125,7 @@ impl Network {
 
         let d = Bernoulli::new(p);
         for layer in &mut self.layers {
-            for node in layer {
+            for node in &mut layer.nodes {
                 for weight in &mut node.weights {
                     if d.sample(&mut rand::thread_rng()) {
                         *weight = Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng());
