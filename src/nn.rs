@@ -1,35 +1,9 @@
-#[derive(Clone, Debug)]
-pub struct Node {
-    weights: Vec<f32>
-}
-
-impl Node {
-    fn with_weights(n_weights: usize) -> Self {
-        Self {
-            weights: std::iter::repeat_with(|| {
-                use rand::distributions::{Distribution, Uniform};
-                Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng())
-            }).take(n_weights).collect()
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Layer {
-    nodes: Vec<Node>
-}
-
-impl Layer {
-    fn new(node_count: usize, weight_count: usize) -> Self {
-        Self { 
-            nodes: std::iter::repeat_with(|| Node::with_weights(weight_count)).take(node_count).collect() 
-        }
-    }
-}
+ use rand::distributions::{Distribution, Bernoulli, Uniform};
 
 #[derive(Clone, Debug)]
 pub struct Network {
-    layers: Vec<Layer>
+    layers: Vec<usize>,
+    weights: Vec<f32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,27 +26,21 @@ impl Network {
         }
     }
 
-    pub fn new(layers: &[usize]) -> Result<Self, CreationError> {
-        Self::is_valid_type(layers)?;
+    pub fn new(layers:  Vec<usize>) -> Result<Self, CreationError> {
+        Self::is_valid_type(&layers)?;
 
-        let mut network = Network {
-            layers: Vec::with_capacity(layers.len())
-        };
+        let (weight_count, _) = layers.iter().fold((0, 0), |(total, node_c), &layer| (total + node_c * layer, layer + 1));
 
-        network.layers.push(Layer::new(layers[1], layers[0] + 1));
-
-        for &layer in &layers[2..] {
-            let prev_node_count = network.layers.last().unwrap().nodes.len();
-            network.layers.push(Layer::new(layer, prev_node_count + 1));
-        }
-
-        Ok(network)
+        Ok(Network {
+            layers: layers,
+            weights: std::iter::repeat_with(|| Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng())).take(weight_count).collect()
+        })
     }
 
     fn calculate_value(values: &[f32], weights: &[f32]) -> f32 {
         debug_assert_eq!(values.len(), weights.len() - 1);
 
-        let mut total = 1.0;
+        let mut total = 0.0;
         for i in 0..values.len() {
             total += values[i] * weights[i];
         }
@@ -83,37 +51,40 @@ impl Network {
     }
 
     pub fn run(&self, input: &[f32]) -> Result<Vec<f32>, RunError> {
-        if input.len() != self.layers[0].nodes[0].weights.len() - 1 {
+        if input.len() != self.layers[0] {
             Err(RunError::WrongInputCount)
         }
         else {
-            let mut prev_layer = input.to_vec();
-            for layer in &self.layers {
-                let mut current_layer = Vec::with_capacity(layer.nodes.len());
+            let mut offset = 0;
+            let mut values = input.to_vec();
 
-                for node in layer.nodes.iter() {
-                    current_layer.push(Self::calculate_value(&prev_layer, &node.weights));
-                }
+            for &layer in self.layers.iter().skip(1) {
 
-                prev_layer = current_layer;
+                values = std::iter::repeat_with(|| {
+                    let section_end = offset + values.len() + 1;
+                    let value = Self::calculate_value(&values, &self.weights[offset..section_end]);
+                    offset = section_end;
+                    value
+                }).take(layer).collect();
             }
 
-            Ok(prev_layer)
+            Ok(values)
         }
+    }
+
+    pub fn test(&self, input: &[f32], expected: &[f32]) -> Result<f32, RunError> {
+        let actual = self.run(input)?;
+
+        Ok(actual.iter().zip(expected).fold(0.0, |n, (a, e)| n + (a- e).abs()))
     }
 
     pub fn breed(father: &Self, mother: &Self, p: f64) -> Self {
         let mut child = father.clone();
 
-        use rand::distributions::{Distribution, Bernoulli};
         let d = Bernoulli::new(p);
-        for (c_lay, p_lay) in child.layers.iter_mut().zip(&mother.layers) {
-            for (c_node, p_node) in c_lay.nodes.iter_mut().zip(&p_lay.nodes) {
-                for (c_weight, &p_weight) in c_node.weights.iter_mut().zip(&p_node.weights) {
-                    if d.sample(&mut rand::thread_rng()) {
-                        *c_weight = p_weight;
-                    }
-                }
+        for (c_weight, &p_weight) in child.weights.iter_mut().zip(&mother.weights) {
+            if d.sample(&mut rand::thread_rng()) {
+                *c_weight = p_weight;
             }
         }  
 
@@ -124,13 +95,9 @@ impl Network {
         use rand::distributions::{Distribution, Bernoulli, Uniform};
 
         let d = Bernoulli::new(p);
-        for layer in &mut self.layers {
-            for node in &mut layer.nodes {
-                for weight in &mut node.weights {
-                    if d.sample(&mut rand::thread_rng()) {
-                        *weight = Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng());
-                    }
-                }
+        for weight in &mut self.weights {
+            if d.sample(&mut rand::thread_rng()) {
+                *weight = Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng());
             }
         }  
     }

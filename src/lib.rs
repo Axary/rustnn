@@ -29,7 +29,7 @@ impl Environment {
     pub fn new(network_type: &[usize], network_count: usize) -> Result<Self, nn::CreationError> {
         Network::is_valid_type(network_type)?;
 
-        let networks = std::iter::repeat_with(||Network::new(network_type).unwrap()).take(network_count).collect();
+        let networks = std::iter::repeat_with(||Network::new(network_type.to_vec()).unwrap()).take(network_count).collect();
 
         Ok(Self {
             networks: networks,
@@ -101,7 +101,7 @@ impl Environment {
     }
 
     fn sort_fitness_vec(mut nn: Vec<(f32, Network)>) -> Vec<(f32, Network)> {
-        nn.sort_unstable_by(|(a, _), (b, _)| b.partial_cmp(a).unwrap());
+        nn.sort_unstable_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         nn
     }
 
@@ -137,7 +137,7 @@ impl Environment {
         // chance of breeding instead of mutation
         let m_to_b = Bernoulli::new(0.3);
         // how many weights chance during mutation
-        let mutation_ratio = 0.3;
+        let mutation_ratio = 0.2;
         let possible_parents = Uniform::new(0, networks.len());
 
         networks.append(&mut rayon::iter::repeatn((), nn_count - networks.len()).map(|_| {
