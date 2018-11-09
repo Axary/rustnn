@@ -1,4 +1,6 @@
- use rand::distributions::{Distribution, Bernoulli, Uniform};
+use rand::distributions::{Distribution, Bernoulli, Uniform};
+
+use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct Network {
@@ -59,13 +61,15 @@ impl Network {
             let mut values = input.to_vec();
 
             for &layer in self.layers.iter().skip(1) {
+                let n_weights = values.len() + 1;
 
-                values = std::iter::repeat_with(|| {
-                    let section_end = offset + values.len() + 1;
-                    let value = Self::calculate_value(&values, &self.weights[offset..section_end]);
-                    offset = section_end;
-                    value
-                }).take(layer).collect();
+                values = (0..layer).into_iter().map(|i| {
+                    let section_start = offset + i * n_weights;
+                    let section_end = section_start + n_weights;
+                    Self::calculate_value(&values, &self.weights[section_start..section_end])
+                }).collect();
+
+                offset += layer * (n_weights);
             }
 
             Ok(values)
@@ -79,27 +83,35 @@ impl Network {
     }
 
     pub fn breed(father: &Self, mother: &Self, p: f64) -> Self {
-        let mut child = father.clone();
+        let layers = father.layers.clone();
 
         let d = Bernoulli::new(p);
-        for (c_weight, &p_weight) in child.weights.iter_mut().zip(&mother.weights) {
-            if d.sample(&mut rand::thread_rng()) {
-                *c_weight = p_weight;
-            }
-        }  
+        let weights = father.weights.iter().zip(&mother.weights).map(|(&f_weight, &m_weight)| if d.sample(&mut rand::thread_rng()) {
+                f_weight
+            } else {
+                m_weight
+            }).collect();
 
-        child
+        Self {
+            layers,
+            weights
+        }
     }
 
-    pub fn mutate(&mut self, p: f64) {
-        use rand::distributions::{Distribution, Bernoulli, Uniform};
-
+    pub fn mutate(parent: &Self, p: f64) -> Self {
+        let layers = parent.layers.clone();
+        
         let d = Bernoulli::new(p);
-        for weight in &mut self.weights {
-            if d.sample(&mut rand::thread_rng()) {
-                *weight = Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng());
-            }
-        }  
+        let weights = parent.weights.iter().map(|&p_weight| if d.sample(&mut rand::thread_rng()) {
+                Uniform::new_inclusive(-1.0, 1.0).sample(&mut rand::thread_rng())
+            } else {
+                p_weight
+            }).collect();
+
+        Self {
+            layers,
+            weights
+        } 
     }
 }
 

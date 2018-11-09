@@ -1,7 +1,5 @@
 extern crate rustnn;
 
-use std::num::NonZeroUsize;
-
 use rustnn::nn::Network;
 
 #[derive(Debug, Clone, Default)]

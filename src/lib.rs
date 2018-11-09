@@ -135,14 +135,14 @@ impl Environment {
 
         use rand::distributions::{Distribution, Bernoulli, Uniform};
         // chance of breeding instead of mutation
-        let m_to_b = Bernoulli::new(0.3);
+        let b_to_m = Bernoulli::new(0.3);
         // how many weights chance during mutation
         let mutation_ratio = 0.2;
         let possible_parents = Uniform::new(0, networks.len());
 
         networks.append(&mut rayon::iter::repeatn((), nn_count - networks.len()).map(|_| {
             let rng = &mut rand::thread_rng();
-            if m_to_b.sample(rng) {
+            if b_to_m.sample(rng) {
                 let father = &networks[possible_parents.sample(rng)];
                 let mut mother = &networks[possible_parents.sample(rng)];
                 while father as *const _ == mother as *const _ {
@@ -152,9 +152,7 @@ impl Environment {
                 Network::breed(father, mother, 0.5)
             }
             else {
-                let mut offspring = networks[possible_parents.sample(rng)].clone();
-                offspring.mutate(mutation_ratio);
-                offspring
+                Network::mutate(&networks[possible_parents.sample(rng)], mutation_ratio)
             }
         }).collect());
 
