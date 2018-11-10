@@ -1,18 +1,34 @@
-extern crate rustnn;
+extern crate rnn;
 
-fn xor_check(network: &rustnn::Network) -> f32 {
-    let mut total = 0.0;
-    total += rustnn::func::squared_error(&[0.0], &network.run(&[1.0, 1.0]).unwrap());
-    total += rustnn::func::squared_error(&[1.0], &network.run(&[1.0, 0.0]).unwrap());
-    total += rustnn::func::squared_error(&[1.0], &network.run(&[0.0, 1.0]).unwrap());
-    total += rustnn::func::squared_error(&[0.0], &network.run(&[0.0, 0.0]).unwrap());
-    total
+use rnn::Network;
+
+const TRUTH_TABLE: [([f32; 2], f32); 4] =
+    [
+        ([0.0, 0.0], 0.0),
+        ([0.0, 1.0], 1.0),
+        ([1.0, 0.0], 1.0),
+        ([1.0, 1.0], 0.0),
+    ];
+
+fn xor_check(network: &Network) -> f32 {
+    TRUTH_TABLE.iter().fold(0.0, |total, &(input, ideal)| {
+        total + rnn::func::squared_error(&[ideal], &network.run(&input))
+    })
+}
+
+fn showcase(network: &Network) {    
+    println!("fitness of the best survivor: {}", xor_check(network));
+    println!("individual results:");
+
+    TRUTH_TABLE.iter().for_each(|&(input, ideal)| {
+        println!("{:?} => ideal: {:?}, actual: {:?}", input, ideal, network.run(&input)[0]);
+    })
 }
 
 fn main() {
     let generations = 1000;
 
-    let mut environment = rustnn::genetic::Environment::new(&[2, 2, 1], 1000).unwrap();
+    let mut environment = rnn::genetic::Environment::new(&[2, 2, 1], 1000);
     
     let now = std::time::Instant::now();
 
@@ -21,11 +37,5 @@ fn main() {
     }
 
     println!("time spend: {:?}", std::time::Instant::now().duration_since(now));
-    let prev_survivor = environment.get_previous_survivor(0).unwrap();
-    println!("gen {}: {}", environment.generation(), xor_check(&prev_survivor));
-    println!("{:?}", prev_survivor);
-    println!("network.run(&[1.0, 1.0]): {:?}", prev_survivor.run(&[1.0, 1.0]).unwrap()[0]);
-    println!("network.run(&[1.0, 0.0]): {:?}", prev_survivor.run(&[1.0, 0.0]).unwrap()[0]);
-    println!("network.run(&[0.0, 1.0]): {:?}", prev_survivor.run(&[0.0, 1.0]).unwrap()[0]);
-    println!("network.run(&[0.0, 0.0]): {:?}", prev_survivor.run(&[0.0, 0.0]).unwrap()[0]);
+    showcase(environment.get_best_survivor());
 }

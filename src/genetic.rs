@@ -1,6 +1,5 @@
 use rayon::prelude::*;
 
-use crate::error::*;
 use crate::{Network};
 
 use rand::Rng;
@@ -13,18 +12,16 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn new(network_type: &[usize], network_count: usize) -> Result<Self, CreationError> {
-        Network::layers_valid(network_type)?;
+    pub fn new(network_type: &[usize], network_count: usize) -> Self {
+        let networks = std::iter::repeat_with(|| Network::new(network_type.to_vec())).take(network_count).collect();
 
-        let networks = std::iter::repeat_with(|| Network::new(network_type.to_vec()).unwrap()).take(network_count).collect();
-
-        Ok(Self {
+        Self {
             networks: networks,
             
             survivor_count: 0,
           
             generation: 0,
-        })
+        }
     }
 
     pub fn get_network(&self, index: usize) -> Option<&Network> {
@@ -38,6 +35,10 @@ impl Environment {
         else {
             None
         }
+    }
+
+    pub fn get_best_survivor(&self) -> &Network {
+        self.get_previous_survivor(0).unwrap()
     }
 
     pub fn survivor_count(&self) -> usize {
@@ -67,10 +68,10 @@ impl Environment {
         survivors
     }
     
-    pub fn simple_gen(&mut self, fitness_function: fn(&Network) -> f32) {
+    pub fn simple_gen(&mut self, loss_function: fn(&Network) -> f32) {
         self.generation += 1;
 
-        let ordered_nn = Self::simple_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), fitness_function);
+        let ordered_nn = Self::simple_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), loss_function);
         
         let (survivor_count, networks) = Self::evolve_rated_networks(ordered_nn);
 
@@ -78,10 +79,10 @@ impl Environment {
         self.networks = networks;
     }
 
-    pub fn pair_gen(&mut self, fitness_function: fn(&Network, &Network) -> (f32, f32)) {
+    pub fn pair_gen(&mut self, loss_function: fn(&Network, &Network) -> (f32, f32)) {
         self.generation += 1;
 
-        let ordered_nn = Self::pair_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), fitness_function);
+        let ordered_nn = Self::pair_rate(std::mem::replace(&mut self.networks, Vec::with_capacity(0)), loss_function);
 
         let (survivor_count, networks) = Self::evolve_rated_networks(ordered_nn);
 
@@ -94,16 +95,16 @@ impl Environment {
         nn
     }
 
-    pub fn simple_rate(nn: Vec<Network>, fitness_function: fn(&Network) -> f32) -> Vec<(f32, Network)> {
-        Self::sort_fitness_vec(nn.into_par_iter().map(|nn| (fitness_function(&nn), nn)).collect())
+    pub fn simple_rate(nn: Vec<Network>, loss_function: fn(&Network) -> f32) -> Vec<(f32, Network)> {
+        Self::sort_fitness_vec(nn.into_par_iter().map(|nn| (loss_function(&nn), nn)).collect())
     }
 
-    pub fn pair_rate(networks: Vec<Network>, fitness_function: fn(&Network, &Network) -> (f32, f32)) -> Vec<(f32, Network)> {
+    pub fn pair_rate(networks: Vec<Network>, loss_function: fn(&Network, &Network) -> (f32, f32)) -> Vec<(f32, Network)> {
         let mut nn_iter = networks.iter().enumerate();
         let mut fitness_vec: Vec<f32> = std::iter::repeat(0.0).take(networks.len()).collect();
         while let Some((a, nn_a)) = nn_iter.next() {
             for (b, nn_b) in nn_iter.clone() {
-                let (fit_a, fit_b) = fitness_function(nn_a, nn_b);
+                let (fit_a, fit_b) = loss_function(nn_a, nn_b);
                 fitness_vec[a] += fit_a;
                 fitness_vec[b] += fit_b;
             }
