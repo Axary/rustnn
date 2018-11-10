@@ -2,7 +2,7 @@
 
 A neural network implemented in Rust.
 
-`rnn` is currently WIP and far from stable. Once [const generics](https://github.com/rust-lang/rust/issues/44580) are available on nightly, this whole crate will be redesigned and about *50 %* faster.
+`rnn` is currently WIP and far from stable. Once [const generics](https://github.com/rust-lang/rust/issues/44580) are available on nightly, this crate will be redesigned and about *50 %* faster.
 
 ## Example
 
