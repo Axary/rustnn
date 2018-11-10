@@ -1,18 +1,18 @@
 extern crate rustnn;
 
-fn xor_check(network: &rustnn::nn::Network) -> f32 {
+fn xor_check(network: &rustnn::Network) -> f32 {
     let mut total = 0.0;
-    total += network.test(&[1.0, 1.0], &[0.0]).unwrap();
-    total += network.test(&[1.0, 0.0], &[1.0]).unwrap();
-    total += network.test(&[0.0, 1.0], &[1.0]).unwrap();
-    total += network.test(&[0.0, 0.0], &[0.0]).unwrap();
+    total += rustnn::func::squared_error(&[0.0], &network.run(&[1.0, 1.0]).unwrap());
+    total += rustnn::func::squared_error(&[1.0], &network.run(&[1.0, 0.0]).unwrap());
+    total += rustnn::func::squared_error(&[1.0], &network.run(&[0.0, 1.0]).unwrap());
+    total += rustnn::func::squared_error(&[0.0], &network.run(&[0.0, 0.0]).unwrap());
     total
 }
 
 fn main() {
-    let generations = 10000;
+    let generations = 1000;
 
-    let mut environment = rustnn::Environment::new(&[2, 2, 1], 1000).unwrap();
+    let mut environment = rustnn::genetic::Environment::new(&[2, 2, 1], 1000).unwrap();
     
     let now = std::time::Instant::now();
 
