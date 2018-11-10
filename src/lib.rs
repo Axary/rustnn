@@ -6,7 +6,6 @@ pub mod error;
 
 use crate::error::*;
 
-use rand::FromEntropy;
 use rand::distributions::{Distribution, Uniform};
 
 #[derive(Clone, Debug)]
