@@ -63,7 +63,7 @@ fn loss_function(network: &rnn::Network) -> f32 {
 }
 ```
 
-To check if the training was effective let's just use a modified version of the `loss_function` which simply prints the results.
+To check if the training was effective let's use a modified version of the `loss_function` which simply prints the results.
 
 ```rust
 // outside of `fn main()`
