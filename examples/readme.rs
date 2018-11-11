@@ -35,12 +35,12 @@ fn main() {
     // 3 input nodes, 1 hidden layer with 3 nodes and one output node
     let layers = [3, 3, 1];
 
-    let mut environment = rnn::genetic::Environment::new(&layers, network_count);
+    let mut environment = rnn::env::Genetic::new(&layers, network_count);
 
     // run 1000 generations
     for _ in 0..1000 {
         environment.simple_gen(loss_function);
     }
 
-    showcase(environment.get_best_survivor());
+    showcase(environment.get_best());
 }

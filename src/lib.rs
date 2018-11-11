@@ -1,7 +1,7 @@
 //! a neural network implemented in rust
 
+pub mod env; 
 pub mod func;
-pub mod genetic;
 
 use rand::distributions::{Distribution, Uniform};
 
@@ -11,23 +11,37 @@ pub struct Network {
     weights: Box<[f32]>,
 }
 
-
 impl Network {
     pub fn layers_valid(layers: &[usize]) -> bool {
         !(layers.len() < 2 || layers.contains(&0))
     }
 
-    pub fn new(layers: Vec<usize>) ->Self {
-        assert!(Self::layers_valid(&layers));
+    pub fn new(layers: &[usize]) ->Self {
+        assert!(Self::layers_valid(layers));
 
         let rng = &mut crate::get_rng();
 
         let (weight_count, _) = layers.iter().fold((0, 0), |(total, node_c), &layer| (total + node_c * layer, layer + 1));
 
         Self {
-            layers: layers.into_boxed_slice(),
+            layers: layers.to_owned().into_boxed_slice(),
             weights: std::iter::repeat_with(|| Uniform::new_inclusive(-1.0, 1.0).sample(rng)).take(weight_count)
                 .collect::<Vec<_>>().into_boxed_slice()
+        }
+    }
+
+    pub fn multiple(layers: &[usize], count: usize) -> Vec<Self> {
+        std::iter::repeat_with(|| Network::new(layers)).take(count).collect()
+    }
+
+    pub fn into_raw_parts(self) -> (Box<[usize]>, Box<[f32]>) {
+        (self.layers, self.weights)
+    }
+
+    pub fn from_raw_parts(layers: Box<[usize]>, weights: Box<[f32]>) -> Self {
+        Self {
+            layers,
+            weights
         }
     }
 

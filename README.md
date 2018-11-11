@@ -28,7 +28,7 @@ let network_count = 250;
 // 3 input nodes, 1 hidden layer with 3 nodes and one output node
 let layers = [3, 3, 1];
 
-let mut environment = rnn::genetic::Environment::new(&layers, network_count);
+let mut environment = rnn::env::Genetic::new(&layers, network_count);
 
 // run 1000 generations
 for _ in 0..1000 {
@@ -82,7 +82,7 @@ fn showcase(network: &Network) {
 with the best survivor of the last generation:
 ```rust
 // continue in `fn main()`
-showcase(environment.get_best_survivor());
+showcase(environment.get_best());
 ```
 
 The full example can be found in [examples/readme.rs](examples/readme.rs)
@@ -90,7 +90,8 @@ The full example can be found in [examples/readme.rs](examples/readme.rs)
 ## Todo
 
 1. add a `Environment` to train the neural networks with [back propagation](https://en.wikipedia.org/wiki/Backpropagation).
-2. add a more complex example, something something image recognition.
+1. add a more complex example, something something image recognition.
+1. add [serde](https://crates.io/crates/serde) support to resume training between sessions.
 3. improve the API
 
 
