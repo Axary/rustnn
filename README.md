@@ -2,7 +2,7 @@
 
 A neural network implemented in Rust.
 
-`rnn` is currently WIP and far from stable. Once [const generics](https://github.com/rust-lang/rust/issues/44580) are available on nightly, this whole crate will be redesigned and about *50 %* faster.
+`rnn` is currently WIP and far from stable. Once [const generics](https://github.com/rust-lang/rust/issues/44580) are available on nightly, this crate will be redesigned and about *50 %* faster.
 
 ## Example
 
@@ -63,7 +63,7 @@ fn loss_function(network: &rnn::Network) -> f32 {
 }
 ```
 
-To check if the training was effective let's just use a modified version of the `loss_function` which simply prints the results.
+To check if the training was effective let's use a modified version of the `loss_function` which simply prints the results.
 
 ```rust
 // outside of `fn main()`
