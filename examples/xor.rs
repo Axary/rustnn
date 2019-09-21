@@ -32,7 +32,7 @@ fn showcase(network: &Network) {
 fn main() {
     let generations = 1000;
 
-    let mut environment = rnn::env::Genetic::new(&[2, 2, 1], 1000);
+    let mut environment = rnn::env::Genetic::new(&[2, 2, 1], 10000);
 
     let now = std::time::Instant::now();
 

@@ -16,7 +16,7 @@ impl Genetic {
         let networks = Network::multiple(network_type, network_count);
 
         Self {
-            networks: networks,
+            networks,
             generation: 0,
         }
     }

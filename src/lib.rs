@@ -40,14 +40,6 @@ impl Network {
             .collect()
     }
 
-    pub fn into_raw_parts(self) -> (Box<[usize]>, Box<[f32]>) {
-        (self.layers, self.weights)
-    }
-
-    pub fn from_raw_parts(layers: Box<[usize]>, weights: Box<[f32]>) -> Self {
-        Self { layers, weights }
-    }
-
     fn calculate_value(
         values: &[f32],
         weights: &[f32],
@@ -65,8 +57,66 @@ impl Network {
         activation_function(total)
     }
 
+    pub fn weight(&self, layer: usize, neuron: usize, input: usize) -> f32 {
+        let mut offset = 0;
+        for i in 1..layer {
+            offset += self.layers[i] * (self.layers[i - 1] + 1);
+        }
+
+        self.weights[offset + neuron * (self.layers[layer - 1] + 1) + input]
+    }
+
+    pub fn set_weight(&mut self, layer: usize, neuron: usize, input: usize, value: f32) {
+        let mut offset = 0;
+        for i in 1..layer {
+            offset += self.layers[i] * (self.layers[i - 1] + 1);
+        }
+
+        self.weights[offset + neuron * (self.layers[layer - 1] + 1) + input] = value;
+    }
+
+    pub fn run_remembering_state(&self, input: &[f32]) -> Vec<Vec<f32>> {
+        self.run_with_activation_function_remembering_state(input, |t| {
+            crate::func::bipolar_sigmoid(t, 10.0)
+        })
+    }
+
+    pub fn run_with_activation_function_remembering_state(
+        &self,
+        input: &[f32],
+        activation_function: fn(f32) -> f32,
+    ) -> Vec<Vec<f32>> {
+        assert_eq!(input.len(), self.layers[0]);
+
+        let mut offset = 0;
+        let mut values = vec![input.to_vec()];
+
+        for &neuron_count in self.layers.iter().skip(1) {
+            let n_weights = values.len() + 1;
+
+            values.push(
+                (0..neuron_count)
+                    .into_iter()
+                    .map(|i| {
+                        let section_start = offset + i * n_weights;
+                        let section_end = section_start + n_weights;
+                        Self::calculate_value(
+                            &values.last().unwrap(),
+                            &self.weights[section_start..section_end],
+                            activation_function,
+                        )
+                    })
+                    .collect(),
+            );
+
+            offset += neuron_count * (n_weights);
+        }
+
+        values
+    }
+
     pub fn run(&self, input: &[f32]) -> Vec<f32> {
-        self.run_with_activation_function(input, |t| crate::func::bipolar_sigmoid(t, 10.0))
+        self.run_with_activation_function(input, |t| crate::func::binary_sigmoid(t, 1.0))
     }
 
     pub fn run_with_activation_function(
@@ -79,10 +129,10 @@ impl Network {
         let mut offset = 0;
         let mut values = input.to_vec();
 
-        for &layer in self.layers.iter().skip(1) {
+        for &neuron_count in self.layers.iter().skip(1) {
             let n_weights = values.len() + 1;
 
-            values = (0..layer)
+            values = (0..neuron_count)
                 .into_iter()
                 .map(|i| {
                     let section_start = offset + i * n_weights;
@@ -95,7 +145,7 @@ impl Network {
                 })
                 .collect();
 
-            offset += layer * (n_weights);
+            offset += neuron_count * (n_weights);
         }
 
         values
