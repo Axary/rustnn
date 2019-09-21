@@ -1,19 +1,18 @@
 /// the complete code used in the [README](../README.md).
 extern crate rnn;
 
-const TRUTH_TABLE: [([f32; 3], f32); 8] =
-    [
-        ([0.0, 0.0, 0.0], 0.0),
-        ([0.0, 0.0, 1.0], 1.0),
-        ([0.0, 1.0, 0.0], 0.0),
-        ([0.0, 1.0, 1.0], 1.0),
-        ([1.0, 0.0, 0.0], 0.0),
-        ([1.0, 0.0, 1.0], 1.0),
-        ([1.0, 1.0, 0.0], 1.0),
-        ([1.0, 1.0, 1.0], 0.0),
-    ];
+const TRUTH_TABLE: [([f32; 3], f32); 8] = [
+    ([0.0, 0.0, 0.0], 0.0),
+    ([0.0, 0.0, 1.0], 1.0),
+    ([0.0, 1.0, 0.0], 0.0),
+    ([0.0, 1.0, 1.0], 1.0),
+    ([1.0, 0.0, 0.0], 0.0),
+    ([1.0, 0.0, 1.0], 1.0),
+    ([1.0, 1.0, 0.0], 1.0),
+    ([1.0, 1.0, 1.0], 0.0),
+];
 
-fn loss_function(network: &rnn::Network) -> f32 {    
+fn loss_function(network: &rnn::Network) -> f32 {
     use rnn::func::squared_error;
 
     TRUTH_TABLE.iter().fold(0.0, |total, &(input, ideal)| {
@@ -21,12 +20,17 @@ fn loss_function(network: &rnn::Network) -> f32 {
     })
 }
 
-fn showcase(network: &rnn::Network) {    
+fn showcase(network: &rnn::Network) {
     println!("fitness of the best survivor: {}", loss_function(network));
     println!("individual results:");
 
     TRUTH_TABLE.iter().for_each(|&(input, ideal)| {
-        println!("{:?} => ideal: {:?}, actual: {:?}", input, ideal, network.run(&input)[0]);
+        println!(
+            "{:?} => ideal: {:?}, actual: {:?}",
+            input,
+            ideal,
+            network.run(&input)[0]
+        );
     })
 }
 

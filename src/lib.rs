@@ -1,6 +1,6 @@
 //! a neural network implemented in rust
 
-pub mod env; 
+pub mod env;
 pub mod func;
 
 use rand::distributions::{Distribution, Uniform};
@@ -16,22 +16,28 @@ impl Network {
         !(layers.len() < 2 || layers.contains(&0))
     }
 
-    pub fn new(layers: &[usize]) ->Self {
+    pub fn new(layers: &[usize]) -> Self {
         assert!(Self::layers_valid(layers));
 
         let rng = &mut crate::get_rng();
 
-        let (weight_count, _) = layers.iter().fold((0, 0), |(total, node_c), &layer| (total + node_c * layer, layer + 1));
+        let (weight_count, _) = layers.iter().fold((0, 0), |(total, node_c), &layer| {
+            (total + node_c * layer, layer + 1)
+        });
 
         Self {
             layers: layers.to_owned().into_boxed_slice(),
-            weights: std::iter::repeat_with(|| Uniform::new_inclusive(-1.0, 1.0).sample(rng)).take(weight_count)
-                .collect::<Vec<_>>().into_boxed_slice()
+            weights: std::iter::repeat_with(|| Uniform::new_inclusive(-1.0, 1.0).sample(rng))
+                .take(weight_count)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
         }
     }
 
     pub fn multiple(layers: &[usize], count: usize) -> Vec<Self> {
-        std::iter::repeat_with(|| Network::new(layers)).take(count).collect()
+        std::iter::repeat_with(|| Network::new(layers))
+            .take(count)
+            .collect()
     }
 
     pub fn into_raw_parts(self) -> (Box<[usize]>, Box<[f32]>) {
@@ -39,13 +45,14 @@ impl Network {
     }
 
     pub fn from_raw_parts(layers: Box<[usize]>, weights: Box<[f32]>) -> Self {
-        Self {
-            layers,
-            weights
-        }
+        Self { layers, weights }
     }
 
-    fn calculate_value(values: &[f32], weights: &[f32], activation_function: fn(f32) -> f32) -> f32 {
+    fn calculate_value(
+        values: &[f32],
+        weights: &[f32],
+        activation_function: fn(f32) -> f32,
+    ) -> f32 {
         debug_assert_eq!(values.len(), weights.len() - 1);
 
         let mut total = 0.0;
@@ -58,12 +65,15 @@ impl Network {
         activation_function(total)
     }
 
-    pub fn run(&self, input: &[f32]) -> Vec<f32>{
+    pub fn run(&self, input: &[f32]) -> Vec<f32> {
         self.run_with_activation_function(input, |t| crate::func::bipolar_sigmoid(t, 10.0))
-        
     }
 
-    pub fn run_with_activation_function(&self, input: &[f32], activation_function: fn(f32) -> f32) -> Vec<f32> {
+    pub fn run_with_activation_function(
+        &self,
+        input: &[f32],
+        activation_function: fn(f32) -> f32,
+    ) -> Vec<f32> {
         assert_eq!(input.len(), self.layers[0]);
 
         let mut offset = 0;
@@ -72,11 +82,18 @@ impl Network {
         for &layer in self.layers.iter().skip(1) {
             let n_weights = values.len() + 1;
 
-            values = (0..layer).into_iter().map(|i| {
-                let section_start = offset + i * n_weights;
-                let section_end = section_start + n_weights;
-                Self::calculate_value(&values, &self.weights[section_start..section_end], activation_function)
-            }).collect();
+            values = (0..layer)
+                .into_iter()
+                .map(|i| {
+                    let section_start = offset + i * n_weights;
+                    let section_end = section_start + n_weights;
+                    Self::calculate_value(
+                        &values,
+                        &self.weights[section_start..section_end],
+                        activation_function,
+                    )
+                })
+                .collect();
 
             offset += layer * (n_weights);
         }

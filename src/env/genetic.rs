@@ -1,14 +1,14 @@
 use rayon::prelude::*;
 
-use crate::{Network};
+use crate::Network;
 
-use rand::Rng;
+use rand::distributions::{Bernoulli, Distribution, Uniform};
 use rand::seq::SliceRandom;
-use rand::distributions::{Distribution, Bernoulli, Uniform};
+use rand::Rng;
 
 pub struct Genetic {
     networks: Vec<Network>,
-    generation: u32
+    generation: u32,
 }
 
 impl Genetic {
@@ -31,41 +31,48 @@ impl Genetic {
     pub fn generation(&self) -> u32 {
         self.generation
     }
- 
+
     /// the return value is nonsense in case n is smaller than 2
     fn generate_survivor_distribution(n: usize) -> Vec<usize> {
         let mut rng = crate::get_rng();
 
         let mut survivors = vec![0, 1];
         while let Some(&last) = survivors.last() {
-            let next = last + 1 + (rng.gen::<usize>() % last+1);
-            
+            let next = last + 1 + (rng.gen::<usize>() % (last + 1));
+
             if next < n {
                 survivors.push(next);
-            }
-            else {
+            } else {
                 break;
             }
         }
 
         survivors
     }
-    
+
     pub fn simple_gen(&mut self, loss_function: fn(&Network) -> f32) {
         self.generation += 1;
 
-        let mut indexes = self.networks.par_iter().enumerate().map(|(i, nn)| (loss_function(nn), i)).collect::<Vec<_>>();
+        let mut indexes = self
+            .networks
+            .par_iter()
+            .enumerate()
+            .map(|(i, nn)| (loss_function(nn), i))
+            .collect::<Vec<_>>();
         indexes.sort_unstable_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         let indexes = indexes.into_iter().map(|(_, i)| i).collect::<Vec<_>>();
-        
+
         let survivor_list = Self::generate_survivor_distribution(self.networks.len());
 
         let survivor_len = survivor_list.len();
-        for (i, index) in survivor_list.into_iter().map(|survivor| indexes[survivor]).enumerate() {
+        for (i, index) in survivor_list
+            .into_iter()
+            .map(|survivor| indexes[survivor])
+            .enumerate()
+        {
             if index > i {
                 self.networks.swap(i, index);
-            }
-            else {
+            } else {
                 self.networks.swap(i, indexes[i]);
             }
         }
@@ -75,7 +82,7 @@ impl Genetic {
 
     pub fn evolve_rated_networks(&mut self, survivors: usize) {
         // chance of breeding instead of mutation
-        let b_to_m = Bernoulli::new(0.3);
+        let b_to_m = Bernoulli::new(0.3).unwrap();
         // how many weights chance during mutation
         let mutation_ratio = 0.2;
 
@@ -89,8 +96,7 @@ impl Genetic {
                 let father = parents.next().unwrap();
                 let mother = parents.next().unwrap();
                 *nn = Network::breed(father, mother, 0.5);
-            }
-            else {
+            } else {
                 *nn = Network::mutate(alive.choose(rng).unwrap(), mutation_ratio)
             }
         });
@@ -110,33 +116,36 @@ impl GeneticNetwork for Network {
         let layers = father.layers.clone();
 
         let rng = &mut crate::get_rng();
-        let d = Bernoulli::new(p);
-        let weights = father.weights.iter().zip(mother.weights.iter()).map(|(&f_weight, &m_weight)| if d.sample(rng) {
-                f_weight
-            } else {
-                m_weight
-            }).collect::<Vec<_>>().into_boxed_slice();
+        let d = Bernoulli::new(p).unwrap();
+        let weights = father
+            .weights
+            .iter()
+            .zip(mother.weights.iter())
+            .map(|(&f_weight, &m_weight)| if d.sample(rng) { f_weight } else { m_weight })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
-        Self {
-            layers,
-            weights
-        }
+        Self { layers, weights }
     }
 
     fn mutate(parent: &Self, p: f64) -> Self {
         let layers = parent.layers.clone();
-        
-        let rng = &mut crate::get_rng();
-        let d = Bernoulli::new(p);
-        let weights = parent.weights.iter().map(|&p_weight| if d.sample(rng) {
-                Uniform::new_inclusive(-1.0, 1.0).sample(rng)
-            } else {
-                p_weight
-            }).collect::<Vec<_>>().into_boxed_slice();
 
-        Self {
-            layers,
-            weights
-        } 
+        let rng = &mut crate::get_rng();
+        let d = Bernoulli::new(p).unwrap();
+        let weights = parent
+            .weights
+            .iter()
+            .map(|&p_weight| {
+                if d.sample(rng) {
+                    Uniform::new_inclusive(-1.0, 1.0).sample(rng)
+                } else {
+                    p_weight
+                }
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
+        Self { layers, weights }
     }
 }

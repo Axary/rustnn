@@ -5,5 +5,5 @@ authors = ["Axary <bastian_kauschke@hotmail.de>"]
 edition = "2018"
 
 [dependencies]
-rand = "0.6.0-pre.1"
-rayon = "*"
+rand = "0.7"
+rayon = "1"
